@@ -1,0 +1,40 @@
+/**********************************************************************/
+/*                                                                    */
+/*  RWL - A demonstration program placed in the Public Domain         */
+/*        by it author, R L Walsh, June 10, 2000                      */
+/*                                                                    */
+/**********************************************************************/
+
+#ifndef OS2_INCLUDED
+   #include <os2.h>
+#endif
+DLGINCLUDE 1 "RWLX.H"
+
+DLGTEMPLATE IDD_MAIN LOADONCALL MOVEABLE DISCARDABLE
+BEGIN
+    DIALOG  "RWL alpha v0.25", IDD_MAIN, 60, 83, 352, 128, 0, 
+            FCF_SYSMENU | FCF_TITLEBAR | FCF_TASKLIST
+    BEGIN
+        CTEXT           "~PID", -1, 10, 114, 38, 8, DT_MNEMONIC
+        LISTBOX         IDC_PIDLB, 10, 37, 38, 76
+        PUSHBUTTON      "~Refresh", IDC_PIDUPDT, 8, 10, 42, 14, 
+                        BS_NOPOINTERFOCUS
+        GROUPBOX        "", -1, 59, 2, 2, 126, NOT WS_GROUP
+        LTEXT           "Waiting for initialization...", IDC_CAP, 70, 114, 
+                        272, 8
+        MLE             "", IDC_MLE, 70, 35, 272, 76, MLS_WORDWRAP | 
+                        MLS_VSCROLL | MLS_IGNORETAB
+        AUTORADIOBUTTON "~BeginLIBPATH", IDC_BEG, 86, 19, 80, 10, WS_GROUP | 
+                        WS_TABSTOP
+        AUTORADIOBUTTON "~EndLIBPATH", IDC_END, 86, 5, 80, 10
+        PUSHBUTTON      "~Set", IDC_SET, 196, 10, 48, 14, BS_NOPOINTERFOCUS | 
+                        WS_GROUP
+        PUSHBUTTON      "~Undo", IDC_UNDO, 266, 10, 48, 14, 
+                        BS_NOPOINTERFOCUS
+/* this button is hidden as part of a kludge to prevent the Enter key
+   from changing the selected PID unless the listbox has the focus */
+        DEFPUSHBUTTON   "", -1, -10, -10, 0, 0, BS_NOPOINTERFOCUS | WS_GROUP | 
+                        NOT WS_TABSTOP
+    END
+END
+

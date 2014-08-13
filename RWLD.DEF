@@ -1,0 +1,16 @@
+;**********************************************************************/
+;*                                                                    */
+;*  RWL - A demonstration program placed in the Public Domain         */
+;*        by it author, R L Walsh, June 10, 2000                      */
+;*                                                                    */
+;**********************************************************************/
+
+LIBRARY RWL INITGLOBAL TERMGLOBAL
+DESCRIPTION 'RWL - a demonstration program in the Public Domain'
+PROTMODE
+CODE LOADONCALL
+DATA SINGLE SHARED LOADONCALL
+EXPORTS
+    RWLDInputHook       @2
+    RWLDInitDll         @3
+

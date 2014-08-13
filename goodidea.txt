@@ -1,0 +1,214 @@
+__________________________________________________________________________
+__________________________________________________________________________
+
+But Is It a Good Idea?
+
+(C) Copyright RL Walsh 2000 - All Rights Reserved
+__________________________________________________________________________
+__________________________________________________________________________
+
+RWL v0.25 is a utility program which demonstrates that any PM process
+can use a well-known API to enter any other PM process's execution
+environment at will and alter it as desired.
+
+But is it a good idea to do this sort of thing?  Conventional wisdom
+says "no".  However, that hasn't stopped any number of programmers from
+doing so via other means.  Indeed, some may already be using the
+technique described below.  To my mind, the possibility of creative new
+ways to integrate the operations of disparate programs outweighs the
+equal certainty that most uses of this technique will be ill-conceived,
+at best.  If having this method more widely known inspires new ideas
+for OS/2 programs and causes some old ideas to be revived, then
+documenting it - at least - may prove to be a good idea.
+
+__________________________________________________________________________
+
+Input Hooks
+__________________________________________________________________________
+
+Most PM programmers are familiar with the input hook as a way to
+intercept posted messages before they're dispatched to the target
+window.  Intended for monitoring and altering the flow of events,
+input hooks typically have two uses.
+
+Programs that are deemed applications may occassionally hook their own
+message queues to provide app-level processing for certain messages,
+or simply as a way to avoid subclassing numerous windows.  The scope
+of their activities is intentionally limited to the thread that set
+the hook.
+
+In contrast, many utility programs have been built around hooks in
+the system message queue.  Starting with keyboard and mouse button
+modifiers, many authors soon realized that their code was being
+pulled into nearly every process.  Once there, it could do whatever
+they wished whenever a message passed its way.  From this came the
+ubiquitous cut-and-paste menus, titlebar buttons, customized window
+animations, and more.
+
+While some authors have added app-specific features for a few well-
+known processes (e.g. the WPS), these utils tend to replicate a fixed
+feature-set across every PM process with little need to differentiate
+amongst them.  For them, a hook in the system message queue functions
+as a series of single-thread hooks, differing from those used by
+applications more in scope than intent.
+
+__________________________________________________________________________
+
+RWL
+__________________________________________________________________________
+
+RWL demonstrates a different way to employ the input queue hook.  It
+capitalizes on the little-known fact that any PM thread can hook any
+other thread's message queue (provided the hook is in a dll).  Setting
+such a hook lets an application establish an ad-hoc, runtime linkage
+with whatever target it chooses.  Its code enjoys the same liberties
+and faces the same perils as the code in a system queue hook.
+
+In short, it entails:
+
+ o  obtaining one or more unique message IDs from the system atom table
+ o  determining the thread on which you want your code to execute
+    (presumably, in another process)
+ o  identifying a window belonging to this thread (AFAIK, every
+    thread with a message queue has at least one window)
+ o  retrieving the message queue handle from the window
+ o  hooking that particular message queue
+ o  posting your message(s) to the target queue to activate your code.
+
+__________________________________________________________________________
+
+Identifying the Target Queue
+__________________________________________________________________________
+
+Depending on your circumstances, you may begin your search equipped
+either with a way to uniquely identify the target process, or with
+the target's PID and TID.  In either case, the goal is a window
+belonging to the target thread.
+
+Using a unique identifier may involve searching for a switchlist
+entry or window title, or for an instance of an app-specific window
+class.  Other methods can be used for well-known processes.  To hook
+pmshell.exe's primary message queue, use WinQueryDesktopWindow().
+For the WPS, locate the bottom-most child of HWND_DESKTOP and confirm
+that it is an instance of the wpFolder window class.
+
+You might start with a PID if, for example, your app launched a child
+process whose queue you wish to hook.  Or, you might wish to make
+every process available for manipulation by listing all current PIDs,
+as RWL does.  I'm not aware of any way to directly correlate a thread
+with its queue, but there is a surrogate method.  Enumerate all the
+children of HWND_OBJECT, looking for instances of class "#32767".
+There should be exactly one such window for each message queue;
+WinQueryWindowProcess() will identify the PID/TID to which it belongs.
+
+Unless you have specific knowledge of a program's design , it is
+generally safest and easiest to enter a process on its primary UI
+thread, typically TID 1.  The primary thread is likely to be per-
+sistent while a secondary thread may terminate at any time, taking
+your hook with it.
+
+Once you have a window associated with the target queue, you can
+retrieve the queue's handle using WinQueryWindowULong(QWL_HMQ).
+Pass it to WinSetHook(HK_INPUT) to install your hook in the target
+queue.  Its next WinGetMsg() or WinPeekMsg() should cause PM to
+load your dll in the target process and to invoke its DLL_InitTerm.
+
+__________________________________________________________________________
+
+Operating In Another Process
+__________________________________________________________________________
+
+Although the method described here lets you intercept and handle
+a specific process's messages, this is a fairly trivial use for
+it.  Far more powerful is its ability to let one process establish
+a "presence" in another.  This might be done on an ad-hoc basis:
+enter a process, get/set some datum, then exit.  Or, it might be
+used to create a persistent agent in the target with which your
+app periodically communicates.  The hook should be viewed as your
+entree into the process and not necessarily the context in which
+most of your new functionality should operate.
+
+Given the invasive and opportunistic nature of this method, it seems
+prudent to decouple your program's activities from those of the host
+process.  Functions that are going to be performed by the hook code
+itself (e.g. initialization) should be handled as commands in the
+form of messages with unique IDs posted to the target queue.  This
+lets your processing occur during its own timeslice and makes clear
+to any observer that your messages are not directed to a particular
+window.  (Remember, a queue hook installed after yours will see the
+messages before yours does, and might divert all messages for a
+given window.)
+
+If you need to establish an interface between your process and the
+target, a conventional mechanism such as an object window or a pipe
+is suggested.  This can be created on the current thread if you plan
+to interact with the target's own windows, or spun off to another
+thread if its activities are largely independent of the host's.
+Using this method, your hook code is invoked only once:  to kickoff
+the creation of these independent structures.
+
+As examples of independent interfaces, both Netscape 4.61 and the
+author's DragText v3.3 use hooks to create object windows on the WPS's
+primary thread.  NS does so to identify the object under the mouse
+pointer during its proprietary drag and drop.  DT's enables any process
+to command the WPS to popup an object's menu or initiate a drag.
+
+__________________________________________________________________________
+
+Staying Afloat
+__________________________________________________________________________
+
+Initially, the hook keeps your dll loaded in the target process.
+Once you release the hook, PM unloads the dll.  If your exe fails
+to release it before termination, PM will do so during exitlist
+processing.  Thus, your hook and the dll that supports it persist
+in the target process only for the duration of your application -
+unless you take counter-measures.
+
+If all your transactions with the target are conducted using the
+hook, neither your app nor the target should be adversely affected
+when the other ends.  If your app terminates first, references to
+your code will be removed before the code itself is, so segment-
+not-present faults shouldn't occur.  If the target terminates, your
+app's attempts to post msgs to the target queue will fail.
+
+The situation is quite different if your code operates independently
+of the hook, e.g. an object window.  At any time, its supporting dll
+could be unloaded and its address space made invalid.  There are
+several complementary ways to deal with this.
+
+One way dances around problems by designing away from their likelihood.
+If you limit the scope of your activities to the immediate needs of
+your app and keep your interface proprietary, your exposure to serious
+failure is vastly reduced.  If there's nothing currently in the system
+to invoke your code in the target, then concerns about whether it's
+actually present may be moot.
+
+Another way uses brute force:  have the dll load itself after it enters
+the target process.  This should keep it in place until you explicitly
+unload it or the target process ends.  Unless your dll lies along the
+LIBPATH, you'll have to use its fully-qualified name.  Retrieve this
+in the source process and make it available for use in the target.
+
+__________________________________________________________________________
+
+Acknowledgements
+__________________________________________________________________________
+
+I doubt that I can take credit for "discovering" this technique, nor
+even for first publishing a description of it.  I recall encountering
+a PM process killer by an employee of IBM-Israel that used message
+queue hooks.  If his util set individual hooks into other processes
+rather than a single system queue hook, then he certainly deserves
+full credit for originating this powerful technique.  Others are
+welcome to vie for the honor as well...
+
+__________________________________________________________________________
+__________________________________________________________________________
+
+Rich Walsh  (rlwalsh@packet.net)
+Ft Myers, Florida
+
+June 10, 2000
+__________________________________________________________________________
+__________________________________________________________________________
